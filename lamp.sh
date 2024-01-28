@@ -96,6 +96,11 @@ sudo certbot --apache -d "$domain"
 
 # Display information about the installed components
 echo "LAMP stack with Laravel, Node.js, and SSL certificate installation complete!"
+# Inform the user about the script on GitHub
+echo "You can download or contribute to the development of the script on GitHub:"
+echo "GitHub Repository: https://github.com/bo3bdo/lamp"
+echo ""
+
 echo "Apache version:"
 apache2 -v
 echo "MySQL version:"
