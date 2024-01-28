@@ -55,8 +55,8 @@ echo "Please enter your desired domain name for Laravel installation."
 # Prompt the user for a domain name
 domain=$(prompt_user "Domain name" "example.com")
 
-# Prompt the user for the MySQL root password
-mysql_root_password=$(prompt_user "Enter your MySQL root password" "your_mysql_root_password")
+# Set the MySQL root password (customize as needed)
+mysql_root_password="your_mysql_root_password"
 
 # Create the default MySQL database for Laravel
 echo "Creating default MySQL database..."
