@@ -1,53 +1,115 @@
 #!/bin/bash
 
-# Function to display a simple loading bar
-function loading_bar() {
-    local duration=$1
-    local size=$2
-    local done_char="▇"
-    local empty_char="."
-
-    for ((i=0; i<=$duration; i++)); do
-        printf "\r"
-        for ((j=0; j<=$size; j++)); do
-            if [ $j -lt $i ]; then
-                printf "%s" "$done_char"
-            else
-                printf "%s" "$empty_char"
-            fi
-        done
-        sleep 1
-    done
-    printf "\n"
+# Function to prompt for user input with a default value
+prompt_user() {
+    read -p "$1 ($2): " input
+    echo "${input:-$2}"
 }
 
-# Display an explanatory message
-echo "Welcome! This script installs Laravel on an Ubuntu server and configures Apache, MySQL, and even SSL certificate using Certbot."
-echo "Please follow the instructions and provide the required information to complete the process."
-echo ""
+# Function to display a loading bar
+loading_bar() {
+    local duration=$1
+    local delay=0.2
+    local chars=("▏" "▎" "▍" "▌" "▋" "▊" "▉" "█")
+    local total_ticks=$((duration / delay))
 
-# Update the package database
-echo "Updating the package database..."
-sudo apt-get update > /dev/null 2>&1
-loading_bar 5 10
-echo "Update successful."
+    for ((i = 0; i < total_ticks; i++)); do
+        sleep "$delay"
+        printf "%s" "${chars[i % 8]}"
+    done
+}
 
-# ... (Rest of the script remains unchanged)
+# Update package lists
+echo "Updating package lists..."
+sudo apt update
 
-# Display the status of services without MySQL
-echo "Service status:"
-echo "Apache status:"
-sudo systemctl status apache2 &
-loading_bar 5 10
+# Install Apache web server
+echo "Installing Apache web server..."
+sudo apt install -y apache2
 
-echo "Node.js status:"
-node --version &
-loading_bar 5 10
+# Install MySQL server
+echo "Installing MySQL server..."
+sudo apt install -y mysql-server
 
-echo "npm status:"
-npm --version &
-loading_bar 5 10
+# Secure MySQL installation (set root password and remove anonymous users)
+echo "Securing MySQL installation..."
+sudo mysql_secure_installation
 
-# Print a message to the user about what happened
-echo "Laravel has been successfully installed on the domain $domain_name with an SSL certificate. You can now access the site via https://$domain_name"
-echo "Thank you for using the script."
+# Install PHP and necessary modules
+echo "Installing PHP and necessary modules..."
+sudo apt install -y php libapache2-mod-php php-mysql php-cli php-pear php-dev php-zip php-curl php-xmlrpc php-gd php-mbstring php-xml unzip
+
+# Restart Apache for changes to take effect
+echo "Restarting Apache..."
+sudo systemctl restart apache2
+
+# Install Composer (PHP dependency manager)
+echo "Installing Composer..."
+sudo php -r "copy('https://getcomposer.org/installer', 'composer-setup.php');"
+sudo php composer-setup.php --install-dir=/usr/local/bin --filename=composer
+sudo php -r "unlink('composer-setup.php');"
+
+# Provide instructions to the user
+echo "Please enter your desired domain name for Laravel installation."
+
+# Prompt the user for a domain name
+domain=$(prompt_user "Domain name" "example.com")
+
+# Prompt the user for the MySQL root password
+mysql_root_password=$(prompt_user "Enter your MySQL root password" "your_mysql_root_password")
+
+# Create the default MySQL database for Laravel
+echo "Creating default MySQL database..."
+mysql -u"root" -p"$mysql_root_password" <<EOF
+CREATE DATABASE IF NOT EXISTS $domain;
+EOF
+
+# Check if the database creation was successful
+if [ $? -eq 0 ]; then
+    echo "Default database '$domain' created successfully."
+else
+    echo "Error creating default database '$domain'."
+    exit 1
+fi
+
+# Install Laravel using Composer
+echo "Installing Laravel using Composer..."
+sudo composer create-project --prefer-dist laravel/laravel /var/www/html/"$domain"
+
+# Set proper permissions for Laravel
+echo "Setting permissions for Laravel..."
+sudo chown -R www-data:www-data /var/www/html/"$domain"
+sudo chmod -R 755 /var/www/html/"$domain"/storage
+
+# Install Node.js and npm
+echo "Installing Node.js and npm..."
+sudo apt install -y nodejs npm
+
+# Install Certbot for Let's Encrypt
+echo "Installing Certbot for Let's Encrypt..."
+sudo apt install -y certbot python3-certbot-apache
+
+# Obtain and install SSL certificate
+echo "Obtaining and installing SSL certificate..."
+loading_bar 10 &  # Show a loading bar for 10 seconds
+sudo certbot --apache -d "$domain"
+
+# Display information about the installed components
+echo "LAMP stack with Laravel, Node.js, and SSL certificate installation complete!"
+echo "Apache version:"
+apache2 -v
+echo "MySQL version:"
+mysql --version
+echo "PHP version:"
+php --version
+echo "Composer version:"
+composer --version
+echo "Laravel version:"
+php /var/www/html/"$domain"/artisan --version
+echo "Node.js version:"
+node -v
+echo "npm version:"
+npm -v
+
+# Display MySQL root password for reference (customize as needed)
+echo "MySQL root password: $mysql_root_password"
